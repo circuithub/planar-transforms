@@ -1,6 +1,6 @@
 """PyTorch transforms for planar (2D) data."""
 
-from planar_transforms import compositing, experimental, functional
+from planar_transforms import compositing, experimental, functional, pixel, r2
 from planar_transforms._version import __version__
 from planar_transforms.border_crop import BorderCrop
 from planar_transforms.pad import Pad
@@ -39,4 +39,7 @@ __all__ = [
     "functional",
     "compositing",
     "experimental",
+    # Coordinate frames
+    "pixel",
+    "r2",
 ]
