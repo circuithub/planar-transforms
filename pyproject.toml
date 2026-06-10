@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "planar-transforms"
+dynamic = ["version"]
+description = "PyTorch transforms for planar (2D) data: images, fields, and vector sets"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "CircuitHub" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = ["torch>=2.0.0", "torchvision>=0.15.0"]
+
+[project.optional-dependencies]
+dev = ["black", "ruff", "mypy", "pytest", "pytest-cov", "hypothesis"]
+
+[project.urls]
+Homepage = "https://github.com/circuithub/planar-transforms"
+Repository = "https://github.com/circuithub/planar-transforms"
+
+[tool.hatch.version]
+path = "src/planar_transforms/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/planar_transforms"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
