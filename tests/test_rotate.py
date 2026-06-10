@@ -4,14 +4,11 @@ import pytest
 import torch
 
 from planar_transforms import (
-    BoxSet,
     ContinuousField,
     Degrees,
     DiscreteField,
-    OrientedBoxSet,
-    PointSet,
     Rotate,
-    VectorSet,
+    r2,
 )
 from planar_transforms.functional.rotate import rotate
 
@@ -46,51 +43,53 @@ class TestRotateFunctional:
             rotate(x, angle=Degrees(90.0), interpolation="bilinear")
 
     def test_vectorset_90_degree_rotation(self):
-        """VectorSet rotates to match the image rotation (image-space coords, y down).
-
-        The matrix is transposed so geometry tracks torchvision's image rotation;
-        in image coordinates a positive angle sends (1, 0) -> (0, -1).
-        See tests/test_image_geometry_alignment.py for the end-to-end proof.
-        """
-        x = VectorSet(torch.tensor([[1.0, 0.0]]))
+        """r2 geometry rotates CCW (textbook): (1, 0) at +90 -> (0, 1)."""
+        x = r2.VectorSet(torch.tensor([[1.0, 0.0]]))
         result = rotate(x, angle=Degrees(90.0))
-        expected = torch.tensor([[0.0, -1.0]])
+        expected = torch.tensor([[0.0, 1.0]])
         assert torch.allclose(result, expected, atol=1e-5)
+        assert isinstance(result, r2.VectorSet)
 
     def test_pointset_180_degree_rotation(self):
-        """PointSet should rotate points correctly."""
-        # (1, 0) rotated 180 degrees -> (-1, 0)
-        x = PointSet(torch.tensor([[1.0, 0.0]]))
+        """PointSet should rotate points correctly: (1, 0) at 180 -> (-1, 0)."""
+        x = r2.PointSet(torch.tensor([[1.0, 0.0]]))
         result = rotate(x, angle=Degrees(180.0))
         expected = torch.tensor([[-1.0, 0.0]])
         assert torch.allclose(result, expected, atol=1e-5)
 
+    def test_rejects_pixel_frame(self):
+        """Pixel-frame geometry is not accepted by transforms; convert to r2 first."""
+        from planar_transforms import pixel
+
+        x = pixel.PointSet(torch.tensor([[1.0, 0.0]]))
+        with pytest.raises(NotImplementedError):
+            rotate(x, angle=Degrees(90.0))
+
     def test_boxset_rotation(self):
-        """BoxSet centroids should rotate while radii stay unchanged."""
+        """BoxSet centroids rotate CCW while radii stay unchanged."""
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[10.0, 0.0]])
-        x = BoxSet(radii=radii, centroids=centroids)
+        x = r2.BoxSet(radii=radii, centroids=centroids)
 
         result = rotate(x, angle=Degrees(90.0))
 
-        # Radii should be unchanged
         assert torch.allclose(result.radii, radii)
-        # Centroids (10, 0) -> (0, -10) at +90 in image-space coords (y down)
-        assert torch.allclose(result.centroids, torch.tensor([[0.0, -10.0]]), atol=1e-5)
+        # Centroids (10, 0) -> (0, 10) at +90 CCW
+        assert torch.allclose(result.centroids, torch.tensor([[0.0, 10.0]]), atol=1e-5)
+        assert isinstance(result, r2.BoxSet)
 
     def test_oriented_boxset_rotation(self):
-        """OrientedBoxSet should rotate centroids and update rotors."""
+        """OrientedBoxSet should rotate centroids and update rotors (CCW)."""
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[10.0, 0.0]])
         rotors = torch.tensor([[1.0, 0.0]])  # no initial rotation
-        x = OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
+        x = r2.OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
 
         result = rotate(x, angle=Degrees(90.0))
 
-        # Radii unchanged
         assert torch.allclose(result.radii, radii)
-        # Centroids rotated to match the image: (10, 0) -> (0, -10) at +90
-        assert torch.allclose(result.centroids, torch.tensor([[0.0, -10.0]]), atol=1e-5)
+        # Centroids rotated CCW: (10, 0) -> (0, 10)
+        assert torch.allclose(result.centroids, torch.tensor([[0.0, 10.0]]), atol=1e-5)
         # Rotors should now represent 45 degree half-angle (90/2 = 45)
         expected_rotors = torch.tensor(
             [[torch.cos(torch.tensor(torch.pi / 4)), torch.sin(torch.tensor(torch.pi / 4))]]
@@ -117,12 +116,12 @@ class TestRotateFunctional:
             rotate(x, angle=Degrees(45.0), fit="expand", center=torch.tensor([16, 16]))
 
     def test_batched_different_angles(self):
-        """Should handle batch with different rotation angles (image-space)."""
-        x = VectorSet(torch.tensor([[1.0, 0.0], [1.0, 0.0]]))
+        """Should handle batch with different rotation angles (CCW)."""
+        x = r2.VectorSet(torch.tensor([[1.0, 0.0], [1.0, 0.0]]))
         angles = torch.tensor([90.0, 180.0])
         result = rotate(x, angle=angles)
-        # +90 in image space: (1, 0) -> (0, -1); 180: (1, 0) -> (-1, 0)
-        expected = torch.tensor([[0.0, -1.0], [-1.0, 0.0]])
+        # +90 CCW: (1, 0) -> (0, 1); 180: (1, 0) -> (-1, 0)
+        expected = torch.tensor([[0.0, 1.0], [-1.0, 0.0]])
         assert torch.allclose(result, expected, atol=1e-5)
 
     def test_zero_rotation(self):
@@ -152,7 +151,7 @@ class TestRotateModule:
     def test_partial_kwargs(self):
         """Forward can provide missing kwargs."""
         module = Rotate(fit="keep")
-        x = VectorSet(torch.tensor([[1.0, 0.0]]))
+        x = r2.VectorSet(torch.tensor([[1.0, 0.0]]))
         # angle not set in module, provided at forward time
         result = module(x, angle=Degrees(180.0))
         expected = torch.tensor([[-1.0, 0.0]])

@@ -14,10 +14,11 @@ def _sorted_corners(c):
 
 class TestPointVectorConversion:
     def test_point_known_values(self):
-        # size (H=4, W=4): centre at (2, 2); top-left pixel (row=0, col=0) -> (-2, 2)
-        p = pixel.PointSet(torch.tensor([[0.0, 0.0], [2.0, 2.0]]))
+        # size (H=4, W=4): origin at ((W-1)/2, (H-1)/2) = (1.5, 1.5)
+        # top-left pixel (0, 0) -> (-1.5, 1.5); the centre (1.5, 1.5) -> (0, 0)
+        p = pixel.PointSet(torch.tensor([[0.0, 0.0], [1.5, 1.5]]))
         out = r2.from_pixel(p, size=(4, 4))
-        assert torch.allclose(out, torch.tensor([[-2.0, 2.0], [0.0, 0.0]]))
+        assert torch.allclose(out, torch.tensor([[-1.5, 1.5], [0.0, 0.0]]))
 
     def test_vector_known_values(self):
         # moving +1 row (down) is -y in r2; +1 col (right) is +x
@@ -38,11 +39,11 @@ class TestPointVectorConversion:
 
 class TestBoxConversion:
     def test_box_known_values(self):
-        # radii (row=1, col=3) -> (x=3, y=1); centroid (row=1, col=1) @ (4,4) -> (-1, 1)
+        # radii (row=1, col=3) -> (x=3, y=1); centroid (row=1, col=1) @ (4,4), origin 1.5 -> (-0.5, 0.5)
         b = pixel.BoxSet(radii=torch.tensor([[1.0, 3.0]]), centroids=torch.tensor([[1.0, 1.0]]))
         out = r2.from_pixel(b, size=(4, 4))
         assert torch.allclose(out.radii, torch.tensor([[3.0, 1.0]]))
-        assert torch.allclose(out.centroids, torch.tensor([[-1.0, 1.0]]))
+        assert torch.allclose(out.centroids, torch.tensor([[-0.5, 0.5]]))
 
     def test_box_roundtrip(self):
         b = pixel.BoxSet(radii=torch.rand(4, 2) + 0.5, centroids=torch.randn(4, 2))

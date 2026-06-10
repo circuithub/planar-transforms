@@ -9,8 +9,10 @@ forgotten conversion surfaces as obviously-wrong geometry rather than a silent s
 The functions below are the only place axes are reinterpreted.
 
 Frame map (size = ``(H, W)``), positions:
-    x = col - W/2      y = H/2 - row
-Half-integer pixel centres: the image centre sits at ``(W/2, H/2)``.
+    x = col - (W-1)/2      y = (H-1)/2 - row
+The origin is the image's rotation centre, ``((W-1)/2, (H-1)/2)`` (the centroid of
+pixel indices), so rotation in r2 tracks the image rotation exactly. (Resize sampling
+is a separate concern and uses the half-integer / align_corners=False convention.)
 """
 
 import torch
@@ -48,13 +50,15 @@ def _swap(ab):
 
 
 def _point_pixel_to_r2(rowcol, H, W):
+    cx, cy = (W - 1) / 2.0, (H - 1) / 2.0
     row, col = rowcol[..., 0], rowcol[..., 1]
-    return torch.stack([col - W / 2.0, H / 2.0 - row], dim=-1)
+    return torch.stack([col - cx, cy - row], dim=-1)
 
 
 def _point_r2_to_pixel(xy, H, W):
+    cx, cy = (W - 1) / 2.0, (H - 1) / 2.0
     x, y = xy[..., 0], xy[..., 1]
-    return torch.stack([H / 2.0 - y, x + W / 2.0], dim=-1)
+    return torch.stack([cy - y, x + cx], dim=-1)
 
 
 def _vec_pixel_to_r2(drowdcol):

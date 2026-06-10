@@ -3,12 +3,12 @@ from typing import Any, List, Literal, Optional, TypeVar
 import torch
 import torchvision
 
+from planar_transforms import r2
 from planar_transforms.types import (
     BoxSet,
     ContinuousField,
     Degrees,
     DiscreteField,
-    OrientedBoxSet,
     PointSet,
     VectorSet,
 )
@@ -175,15 +175,15 @@ def rotate(
             fit != "keep" or result.shape == x.shape
         ), f"Postcondition violated: {result.shape} does not match {x.shape}"
         return result  # type: ignore[return-value, no-any-return]
-    elif isinstance(x, (VectorSet, PointSet, BoxSet, OrientedBoxSet)):
+    elif isinstance(x, (r2.VectorSet, r2.PointSet, r2.BoxSet, r2.OrientedBoxSet)):
         if center is not None:
             raise NotImplementedError("Rotation center is not supported for sets at this time")
 
-        # 2d rotation matrix, transposed so geometry rotates the SAME visual
-        # direction as the (torchvision) image rotation. The transpose is required
-        # because point/centroid coords are image-space (col, row) with y pointing
-        # DOWN; it maps math-convention CCW onto image space. Do not "simplify" it
-        # away — see tests/test_image_geometry_alignment.py.
+        # Textbook CCW rotation in the r2 frame (x right, y up). No transpose: the
+        # pixel<->r2 boundary (planar_transforms.r2) carries the handedness, so here
+        # rotation is plain R(theta) and tracks the image rotation. Centroid and rotor
+        # both rotate CCW, so they stay mutually consistent.
+        # See tests/test_image_geometry_alignment.py.
         cos_thetas = torch.cos(thetas)
         sin_thetas = torch.sin(thetas)
         rotation_matrices = torch.stack(
@@ -192,37 +192,31 @@ def rotate(
                 torch.stack([sin_thetas, cos_thetas], dim=-1),
             ],
             dim=-2,
-        ).transpose(-2, -1)
+        )
 
         for _ in range(x.dim() - 2):
             # Handle vector shapes with (B, *, N) where * indicates extra dimensions
             rotation_matrices = rotation_matrices[:, None, ...]
 
         # Apply rotations
-        if isinstance(x, (VectorSet, PointSet)):
+        if isinstance(x, (r2.VectorSet, r2.PointSet)):
             # Batched matrix-vector multiplication (B,M=2,N=2) × (B,...,N=2) -> B,...,M
-            return vecdot(rotation_matrices, x[..., None, :], dim=-1)  # type: ignore[return-value]
-        elif isinstance(x, OrientedBoxSet):
+            return type(x)(vecdot(rotation_matrices, x[..., None, :], dim=-1))
+        elif isinstance(x, r2.OrientedBoxSet):
             rotation_rotor = torch.stack([torch.cos(thetas / 2), torch.sin(thetas / 2)], dim=-1)
-            return OrientedBoxSet(
+            return r2.OrientedBoxSet(
                 radii=x.radii,
-                centroids=(
-                    # Batched matrix-vector multiplication (B,M=2,N=2) × (B,...,N=2) -> B,...,M
-                    vecdot(rotation_matrices, x.centroids[..., None, :], dim=-1)
-                ),
+                centroids=vecdot(rotation_matrices, x.centroids[..., None, :], dim=-1),
                 rotors=torch.view_as_real(
                     # 2D rotors are essentially complex rotations (with half angles)
                     torch.view_as_complex(rotation_rotor)
                     * torch.view_as_complex(x.rotors)
                 ),
             )
-        elif isinstance(x, BoxSet):
-            return BoxSet(
+        elif isinstance(x, r2.BoxSet):
+            return r2.BoxSet(
                 radii=x.radii,
-                centroids=(
-                    # Batched matrix-vector multiplication (B,M=2,N=2) × (B,...,N=2) -> B,...,M
-                    vecdot(rotation_matrices, x.centroids[..., None, :], dim=-1)
-                ),
+                centroids=vecdot(rotation_matrices, x.centroids[..., None, :], dim=-1),
             )
         else:
             assert False, "Unhandled type"

@@ -1,22 +1,20 @@
 """Regression test: geometry rotation must track the image rotation.
 
-The image path (ContinuousField) rotates via torchvision; the geometry path
-(PointSet/BoxSet centroids) rotates via a matrix. These MUST agree, otherwise
-rotation augmentation silently misaligns labels from the pixels.
+The image path (ContinuousField) rotates via torchvision; geometry rotates in the r2
+frame. With the pixel<->r2 boundary carrying the handedness, the full round trip
 
-This is the test the "remove the transpose / use math convention" change failed:
-it makes the geometry rotate opposite to the image. We pin alignment directly by
-rotating an asymmetric image feature and the point that marks it, then comparing.
+    to_pixel(rotate(from_pixel(p), theta)) == image_rotate(p, theta)
 
-Construction convention matches the consumer (objectdetector.py): a centroid is
-``(box_center_xy) - image_size/2`` with ``xy = (col, row)`` and y increasing DOWN.
+must hold. This is the design-agnostic spec for the coordinate frames: if it fails, a
+convention (the r2 rotation, or the frame conversion) is wrong.
 """
 
 import pytest
 import torch
 
+from planar_transforms import pixel, r2
 from planar_transforms.functional.rotate import rotate
-from planar_transforms.types import ContinuousField, PointSet
+from planar_transforms.types import ContinuousField
 
 
 def _centroid_rowcol(img2d):
@@ -31,24 +29,25 @@ def _centroid_rowcol(img2d):
 @pytest.mark.parametrize("angle", [30.0, 90.0, 150.0, -60.0, 215.0])
 def test_geometry_rotation_tracks_image_rotation(angle):
     H = W = 41
-    cx, cy = (W - 1) / 2.0, (H - 1) / 2.0  # centre in (col, row)
 
     # asymmetric marker, up-and-right of centre (no symmetry to hide a flip)
     img = torch.zeros(1, 1, H, W)
     img[0, 0, 6:11, 27:32] = 1.0
 
     fr, fc = _centroid_rowcol(img[0, 0])
-    # centroid in consumer convention: (x=col-cx, y=row-cy), y DOWN, rotated about origin
-    point = PointSet(torch.tensor([[[fc - cx, fr - cy]]]))
+    # feature as a pixel-frame point (row, col), converted into r2
+    p_r2 = r2.from_pixel(pixel.PointSet(torch.tensor([[fr, fc]])), size=(H, W))
 
     # ground truth: where torchvision moves the marker
     rimg = rotate(ContinuousField(img), angle=float(angle), interpolation="bilinear")
     gr, gc = _centroid_rowcol(rimg[0, 0])
 
-    rx, ry = rotate(point, angle=float(angle))[0, 0].tolist()
-    pred_row, pred_col = ry + cy, rx + cx
+    # geometry path: rotate in r2, convert back to pixel
+    rotated = rotate(p_r2, angle=float(angle))
+    back = r2.to_pixel(rotated, size=(H, W))
+    pred_row, pred_col = back[0].tolist()
 
     assert abs(pred_row - gr) < 1.0 and abs(pred_col - gc) < 1.0, (
         f"angle={angle}: geometry ({pred_row:.2f},{pred_col:.2f}) does not track "
-        f"image ({gr:.2f},{gc:.2f}) -- rotation matrix convention is wrong"
+        f"image ({gr:.2f},{gc:.2f})"
     )
