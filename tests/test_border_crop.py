@@ -5,12 +5,9 @@ import torch
 
 from planar_transforms import (
     BorderCrop,
-    BoxSet,
     ContinuousField,
     DiscreteField,
-    OrientedBoxSet,
-    PointSet,
-    VectorSet,
+    r2,
 )
 from planar_transforms.functional.border_crop import border_crop
 
@@ -41,7 +38,7 @@ class TestBorderCropFunctional:
 
     def test_vectorset_translation(self):
         """VectorSet should translate (opposite direction to padding)."""
-        x = VectorSet(torch.tensor([[10.0, 20.0]]))
+        x = r2.VectorSet(torch.tensor([[10.0, 20.0]]))
         # Cropping left=4, right=0 means origin shifts right by 2
         # borders -> -pad, so translation is -(4-0)/2 = -2
         result = border_crop(x, borders=[4, 0, 0, 2])
@@ -50,7 +47,7 @@ class TestBorderCropFunctional:
 
     def test_pointset_symmetric_crop(self):
         """PointSet with symmetric crop should not translate."""
-        x = PointSet(torch.tensor([[16.0, 16.0]]))
+        x = r2.PointSet(torch.tensor([[16.0, 16.0]]))
         result = border_crop(x, borders=4)
         assert torch.allclose(result, x)
 
@@ -58,7 +55,7 @@ class TestBorderCropFunctional:
         """BoxSet centroids should translate while radii stay unchanged."""
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[20.0, 30.0]])
-        x = BoxSet(radii=radii, centroids=centroids)
+        x = r2.BoxSet(radii=radii, centroids=centroids)
 
         # borders -> negative pad -> opposite translation
         result = border_crop(x, borders=[10, 0, 0, 6])
@@ -72,7 +69,7 @@ class TestBorderCropFunctional:
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[20.0, 30.0]])
         rotors = torch.tensor([[1.0, 0.0]])
-        x = OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
+        x = r2.OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
 
         result = border_crop(x, borders=[10, 0, 0, 6])
 

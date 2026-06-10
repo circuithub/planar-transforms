@@ -3,11 +3,11 @@ from typing import Sequence, TypeVar
 import torch
 import torch.nn as nn
 
+from planar_transforms import r2
 from planar_transforms.types import (
     BoxSet,
     ContinuousField,
     DiscreteField,
-    OrientedBoxSet,
     PointSet,
     VectorSet,
 )
@@ -145,18 +145,18 @@ def pad(
         else:
             return padded_t.unflatten(dim=0, sizes=batch_sizes)  # type: ignore[return-value, no-any-return]
 
-    elif isinstance(x, (VectorSet, PointSet, BoxSet, OrientedBoxSet)):
-        translation = (
-            # (left - right, bottom - top) / 2
-            (pad[..., [0, 3]] - pad[..., [1, 2]]).to(dtype=x.dtype)
-            * 0.5
-        )
-        if isinstance(x, (VectorSet, PointSet)):
-            return x + translation  # type: ignore[return-value, no-any-return]
-        if isinstance(x, OrientedBoxSet):
-            return OrientedBoxSet(torch.cat((x.radii, x.centroids + translation, x.rotors), dim=-1))
-        elif isinstance(x, BoxSet):
-            return BoxSet(torch.cat((x.radii, x.centroids + translation), dim=-1))
+    elif isinstance(x, (r2.VectorSet, r2.PointSet, r2.BoxSet, r2.OrientedBoxSet)):
+        # In r2 (x, y) y-up, padding translates the origin. pad is [left, right, top,
+        # bottom]; the centre shifts by ((left-right)/2, (bottom-top)/2) = (+x, +y).
+        translation = (pad[..., [0, 3]] - pad[..., [1, 2]]).to(dtype=x.dtype) * 0.5
+        if isinstance(x, (r2.VectorSet, r2.PointSet)):
+            return type(x)(x + translation)
+        if isinstance(x, r2.OrientedBoxSet):
+            return r2.OrientedBoxSet(
+                torch.cat((x.radii, x.centroids + translation, x.rotors), dim=-1)
+            )
+        elif isinstance(x, r2.BoxSet):
+            return r2.BoxSet(torch.cat((x.radii, x.centroids + translation), dim=-1))
         else:
             assert False, "Unhandled type"
     else:

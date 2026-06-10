@@ -3,12 +3,12 @@ from typing import Any, Literal, Optional, Sequence, TypeVar
 import torch
 import torch.nn as nn
 
+from planar_transforms import r2
 from planar_transforms.types import (
     BoxSet,
     ContinuousField,
     DiscreteField,
     ImageTensor,
-    OrientedBoxSet,
     PointSet,
     VectorSet,
 )
@@ -86,11 +86,13 @@ def resize(
             result.shape[-2:] == new_size
         ), f"Unexpected output height and width {result.shape[-2:]}, expected {new_size}."
         return result  # type: ignore[return-value]
-    elif isinstance(x, (VectorSet, PointSet, BoxSet, OrientedBoxSet)):
+    elif isinstance(x, (r2.VectorSet, r2.PointSet, r2.BoxSet, r2.OrientedBoxSet)):
+        # r2 coordinates are (x, y): x scales with width, y with height. The size is
+        # (H, W), so the scale is (W-ratio, H-ratio) -- the flip of the size order.
         scale_factor = torch.tensor(
             [
-                new_size[0] / original_size[0],
                 new_size[1] / original_size[1],
+                new_size[0] / original_size[0],
             ],
             device=device,
             dtype=(
@@ -100,17 +102,16 @@ def resize(
                 else torch.float
             ),
         )
-        if isinstance(x, (VectorSet, PointSet)):
-            return x * scale_factor  # type: ignore[return-value]
-        elif isinstance(x, OrientedBoxSet):
-            return OrientedBoxSet(
+        if isinstance(x, (r2.VectorSet, r2.PointSet)):
+            return type(x)(x * scale_factor)
+        elif isinstance(x, r2.OrientedBoxSet):
+            # Anisotropic scaling does not rotate the box; rotors are preserved as-is.
+            return r2.OrientedBoxSet(
                 torch.cat((x.unoriented * scale_factor.repeat(2), x.rotors), dim=-1)
             )
-        elif isinstance(x, BoxSet):
-            # BoxSet is (radii_x, radii_y, centroid_x, centroid_y) -> repeat the
-            # 2-element scale to (sx, sy, sx, sy). Without repeat(2) this raises a
-            # (4 vs 2) broadcast error. See tests/test_resize.py::test_boxset_scaling.
-            return x * scale_factor.repeat(2)  # type: ignore[return-value]
+        elif isinstance(x, r2.BoxSet):
+            # (radii_x, radii_y, centroid_x, centroid_y): tile the scale to (sx, sy, sx, sy).
+            return r2.BoxSet(x * scale_factor.repeat(2))
         else:
             assert False, "Unhandled type"
     else:

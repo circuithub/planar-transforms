@@ -4,14 +4,11 @@ import pytest
 import torch
 
 from planar_transforms import (
-    BoxSet,
     ContinuousField,
     DiscreteField,
     ImageTensor,
-    OrientedBoxSet,
-    PointSet,
     Resize,
-    VectorSet,
+    r2,
 )
 from planar_transforms.functional.resize import resize
 
@@ -67,41 +64,42 @@ class TestResizeFunctional:
         assert result.max() <= 1.0
 
     def test_vectorset_scaling(self):
-        """VectorSet should scale by the resize ratio."""
-        x = VectorSet(torch.tensor([[10.0, 20.0], [30.0, 40.0]]))
+        """r2 VectorSet scales per-axis; scale is (sW, sH)."""
+        x = r2.VectorSet(torch.tensor([[10.0, 20.0], [30.0, 40.0]]))
         result = resize(x, original_size=(100, 100), new_size=(200, 200))
-        expected = VectorSet(torch.tensor([[20.0, 40.0], [60.0, 80.0]]))
+        expected = torch.tensor([[20.0, 40.0], [60.0, 80.0]])
         assert torch.allclose(result, expected)
+        assert isinstance(result, r2.VectorSet)
 
     def test_pointset_scaling(self):
-        """PointSet should scale by the resize ratio."""
-        x = PointSet(torch.tensor([[10.0, 20.0], [30.0, 40.0]]))
+        """r2 PointSet (x, y) scales by (sW, sH). new (50, 100) -> sW=1, sH=0.5."""
+        x = r2.PointSet(torch.tensor([[10.0, 20.0], [30.0, 40.0]]))
         result = resize(x, original_size=(100, 100), new_size=(50, 100))
-        expected = PointSet(torch.tensor([[5.0, 20.0], [15.0, 40.0]]))
+        expected = torch.tensor([[10.0, 10.0], [30.0, 20.0]])
         assert torch.allclose(result, expected)
 
     def test_boxset_scaling(self):
-        """BoxSet (radii_x, radii_y, centroid_x, centroid_y) scales per-axis.
+        """r2 BoxSet (radii_x, radii_y, centroid_x, centroid_y) scales per-axis.
 
-        Uses NON-square scaling so a wrong/missing repeat(2) is actually caught:
-        a bare ``x * scale_factor`` raises a (4 vs 2) broadcast error.
+        NON-square scaling so a wrong/missing repeat(2) is caught (bare multiply
+        raises a (4 vs 2) broadcast error). new (50, 200) -> scale (sW=2, sH=0.5).
         """
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[20.0, 30.0]])
-        x = BoxSet(radii=radii, centroids=centroids)
+        x = r2.BoxSet(radii=radii, centroids=centroids)
 
         result = resize(x, original_size=(100, 100), new_size=(50, 200))
 
-        # scale = (0.5, 2.0) applied as (sx, sy, sx, sy)
-        assert torch.allclose(result.radii, torch.tensor([[2.5, 20.0]]))
-        assert torch.allclose(result.centroids, torch.tensor([[10.0, 60.0]]))
+        assert torch.allclose(result.radii, torch.tensor([[10.0, 5.0]]))
+        assert torch.allclose(result.centroids, torch.tensor([[40.0, 15.0]]))
+        assert isinstance(result, r2.BoxSet)
 
     def test_oriented_boxset_scaling(self):
-        """OrientedBoxSet should scale radii and centroids but preserve rotors."""
+        """r2 OrientedBoxSet should scale radii and centroids but preserve rotors."""
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[20.0, 30.0]])
         rotors = torch.tensor([[1.0, 0.0]])  # no rotation
-        x = OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
+        x = r2.OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
 
         result = resize(x, original_size=(100, 100), new_size=(200, 200))
 

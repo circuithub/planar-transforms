@@ -4,13 +4,10 @@ import pytest
 import torch
 
 from planar_transforms import (
-    BoxSet,
     ContinuousField,
     DiscreteField,
-    OrientedBoxSet,
     Pad,
-    PointSet,
-    VectorSet,
+    r2,
 )
 from planar_transforms.functional.pad import pad
 
@@ -72,7 +69,7 @@ class TestPadFunctional:
 
     def test_vectorset_translation(self):
         """VectorSet should translate by half the pad difference."""
-        x = VectorSet(torch.tensor([[10.0, 20.0]]))
+        x = r2.VectorSet(torch.tensor([[10.0, 20.0]]))
         # left=4, right=0, top=0, bottom=2 -> translation = (4-0)/2, (2-0)/2 = (2, 1)
         result = pad(x, pad=[4, 0, 0, 2])
         expected = torch.tensor([[12.0, 21.0]])
@@ -80,7 +77,7 @@ class TestPadFunctional:
 
     def test_pointset_translation(self):
         """PointSet should translate by half the pad difference."""
-        x = PointSet(torch.tensor([[0.0, 0.0]]))
+        x = r2.PointSet(torch.tensor([[0.0, 0.0]]))
         # Symmetric padding: no translation expected
         result = pad(x, pad=4)
         assert torch.allclose(result, x)
@@ -89,7 +86,7 @@ class TestPadFunctional:
         """BoxSet centroids should translate while radii stay unchanged."""
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[20.0, 30.0]])
-        x = BoxSet(radii=radii, centroids=centroids)
+        x = r2.BoxSet(radii=radii, centroids=centroids)
 
         # left=10, right=0, top=0, bottom=6 -> translation = (5, 3)
         result = pad(x, pad=[10, 0, 0, 6])
@@ -102,7 +99,7 @@ class TestPadFunctional:
         radii = torch.tensor([[5.0, 10.0]])
         centroids = torch.tensor([[20.0, 30.0]])
         rotors = torch.tensor([[1.0, 0.0]])
-        x = OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
+        x = r2.OrientedBoxSet(radii=radii, centroids=centroids, rotors=rotors)
 
         result = pad(x, pad=[10, 0, 0, 6])
 
