@@ -10,9 +10,11 @@
   (bilinear), discrete fields stay nearest and reject bilinear. Pure-rotation output
   matches `rotate`; angles are CCW (r2 convention). Matches the per-item torchvision
   affine to sub-pixel accuracy.
-- **`functional.joint_affine`** — applies one set of affine parameters to several
-  co-registered fields (e.g. an image and its label map), each resampled per its own
-  type contract.
+- **Field-typed `flip`** (`functional.flip`, `Flip` module). Reflects a field across a
+  spatial axis, dispatched on field type: continuous and discrete fields reverse the
+  spatial index (exact, no interpolation), sets reflect the flipped r2 axis, and oriented
+  boxes also conjugate the rotor. A per-sample boolean mask selects which batch elements
+  flip. Render-verified against an image flip in `tests/test_image_geometry_alignment.py`.
 
 ### Fixed
 
