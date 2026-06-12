@@ -1,4 +1,4 @@
-"""Tests for planar_transforms affine and joint_affine transforms."""
+"""Tests for planar_transforms affine transform."""
 
 import pytest
 import torch
@@ -6,7 +6,6 @@ import torchvision
 
 from planar_transforms import Affine, ContinuousField, Degrees, DiscreteField
 from planar_transforms.functional.affine import affine
-from planar_transforms.functional.joint import joint_affine
 from planar_transforms.functional.rotate import rotate
 
 
@@ -96,36 +95,6 @@ class TestAffineFunctional:
 
         with pytest.raises(NotImplementedError):
             affine(r2.PointSet(torch.tensor([[1.0, 0.0]])), angle=Degrees(90.0))
-
-
-class TestJointAffine:
-    def test_image_and_mask_move_together(self):
-        """Image and label map under one set of params; mask stays discrete."""
-        torch.manual_seed(2)
-        img = ContinuousField(torch.rand(2, 3, 48, 48))
-        mask = DiscreteField(torch.randint(0, 4, (2, 1, 48, 48)))
-        angle = torch.tensor([25.0, -40.0])
-        out_img, out_mask = joint_affine(img, mask, angle=angle, shear=[6.0, -2.0])
-        assert isinstance(out_img, ContinuousField)
-        assert isinstance(out_mask, DiscreteField)
-        # Mask labels are preserved (nearest), image is interpolated.
-        assert set(out_mask.unique().tolist()).issubset(set(mask.unique().tolist()))
-        assert out_img.shape == img.shape and out_mask.shape == mask.shape
-
-    def test_consistency_with_separate_calls(self):
-        img = ContinuousField(torch.rand(2, 3, 32, 32))
-        mask = DiscreteField(torch.randint(0, 3, (2, 1, 32, 32)))
-        angle = torch.tensor([15.0, 30.0])
-        ji, jm = joint_affine(img, mask, angle=angle)
-        si = affine(img, angle=angle)
-        sm = affine(mask, angle=angle)
-        assert torch.allclose(ji, si) and torch.equal(jm, sm)
-
-    def test_mismatched_shapes_rejected(self):
-        img = ContinuousField(torch.rand(2, 3, 32, 32))
-        mask = DiscreteField(torch.randint(0, 3, (2, 1, 16, 16)))
-        with pytest.raises(AssertionError, match="height and width"):
-            joint_affine(img, mask, angle=Degrees(10.0))
 
 
 class TestAffineModule:
