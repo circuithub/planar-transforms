@@ -10,11 +10,13 @@
   (bilinear), discrete fields stay nearest and reject bilinear. Pure-rotation output
   matches `rotate`; angles are CCW (r2 convention). Matches the per-item torchvision
   affine to sub-pixel accuracy.
-- **Field-typed `flip`** (`functional.flip`, `Flip` module). Reflects a field across a
-  spatial axis, dispatched on field type: continuous and discrete fields reverse the
-  spatial index (exact, no interpolation), sets reflect the flipped r2 axis, and oriented
-  boxes also conjugate the rotor. A per-sample boolean mask selects which batch elements
-  flip. Render-verified against an image flip in `tests/test_image_geometry_alignment.py`.
+- **Field-typed `reflect`** (`functional.reflect`, `Reflect` module). Reflects a field
+  across a spatial axis, dispatched on field type: continuous and discrete fields reverse
+  the spatial index (exact, no interpolation), sets reflect the named r2 coordinate, and
+  oriented boxes also conjugate the rotor. `axis` names the coordinate reflected (`"x"`
+  left-right / columns, `"y"` top-bottom / rows), like `torch.flip` dims. A per-sample
+  boolean mask selects which batch elements reflect. Render-verified against an image
+  reflect in `tests/test_image_geometry_alignment.py`.
 
 ### Fixed
 
