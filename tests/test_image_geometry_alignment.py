@@ -13,7 +13,7 @@ import pytest
 import torch
 
 from planar_transforms import pixel, r2
-from planar_transforms.functional.flip import flip
+from planar_transforms.functional.reflect import reflect
 from planar_transforms.functional.rotate import rotate
 from planar_transforms.types import ContinuousField
 
@@ -57,8 +57,8 @@ def test_geometry_rotation_tracks_image_rotation(angle):
 def _render_oriented_box(obox_r2, H, W):
     """Rasterise a single r2 OrientedBoxSet into an HxW mask via its pixel-frame corners.
 
-    This is the design-agnostic check for flip's box/rotor handling: a rendered flip must
-    match flipping the rendered box, which catches any centroid- or rotor-sign error.
+    This is the design-agnostic check for reflect's box/rotor handling: a rendered reflect
+    must match reflecting the rendered box, which catches any centroid- or rotor-sign error.
     """
     rot = obox_r2.rotors[0]
     theta = 2.0 * torch.atan2(rot[1], rot[0])
@@ -79,9 +79,9 @@ def _render_oriented_box(obox_r2, H, W):
     return inside.float()
 
 
-@pytest.mark.parametrize("axis", ["horizontal", "vertical"])
-def test_flip_oriented_box_tracks_image_flip(axis):
-    """Rendering a flipped oriented box must match flipping the rendered box."""
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_reflect_oriented_box_tracks_image_reflect(axis):
+    """Rendering a reflected oriented box must match reflecting the rendered box."""
     H = W = 81
     theta = torch.deg2rad(torch.tensor(35.0))
     box = r2.OrientedBoxSet(
@@ -91,11 +91,11 @@ def test_flip_oriented_box_tracks_image_flip(axis):
     )
 
     rendered = _render_oriented_box(box, H, W)
-    image_dim = -1 if axis == "horizontal" else -2
+    image_dim = -1 if axis == "x" else -2
     expected = rendered.flip(dims=(image_dim,))
 
-    flipped_box = flip(box, axis=axis)
-    geometry = _render_oriented_box(flipped_box, H, W)
+    reflected_box = reflect(box, axis=axis)
+    geometry = _render_oriented_box(reflected_box, H, W)
 
     iou = float((geometry * expected).sum() / ((geometry + expected) > 0).float().sum())
-    assert iou > 0.97, f"axis={axis}: flipped box IoU {iou:.3f} does not track the image flip"
+    assert iou > 0.97, f"axis={axis}: reflected box IoU {iou:.3f} does not track the image reflect"
